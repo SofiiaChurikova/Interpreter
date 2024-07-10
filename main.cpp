@@ -3,6 +3,7 @@
 #include <stack>
 #include <string>
 #include <cctype>
+#include <stdexcept>
 
 using namespace std;
 
@@ -27,6 +28,8 @@ public:
                     tokens.push(token);
                     token.clear();
                 }
+            } else {
+                throw invalid_argument("Invalid character in input: " + string(1, ch));
             }
         }
 
@@ -49,6 +52,7 @@ private:
         if (op == "*" || op == "/") return 2;
         return 0;
     }
+
 public:
     static queue<string> TransformToRPN(queue<string>& tokens) {
         stack<string> operStack;
@@ -86,6 +90,44 @@ public:
     }
 };
 
+class Calculation {
+public:
+    static double CalculateResult(queue<string>& rpnQueue) {
+        stack<double> stack;
+
+        while (!rpnQueue.empty()) {
+            string token = rpnQueue.front();
+            rpnQueue.pop();
+
+            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
+                stack.push(stod(token));
+            } else {
+                double operand2 = stack.top();
+                stack.pop();
+                double operand1 = stack.top();
+                stack.pop();
+                double result = ApplyOperator(token, operand1, operand2);
+                stack.push(result);
+            }
+        }
+
+        return stack.top();
+    }
+
+private:
+    static double ApplyOperator(const string& op, double a, double b) {
+        if (op == "+") return a + b;
+        if (op == "-") return a - b;
+        if (op == "*") return a * b;
+        if (op == "/") {
+            if (b == 0) {
+                throw invalid_argument("Division by zero");
+            }
+            return a / b;
+        }
+    }
+};
+
 int main() {
     string input;
 
@@ -96,14 +138,15 @@ int main() {
         if (input[0] == '0') {
             break;
         } else {
-            queue<string> tokens = Tokenization::Tokenize(input);
-            queue<string> output = ShuntingYard::TransformToRPN(tokens);
+            try {
+                queue<string> tokens = Tokenization::Tokenize(input);
+                queue<string> output = ShuntingYard::TransformToRPN(tokens);
 
-            while (!output.empty()) {
-                cout << output.front() << " ";
-                output.pop();
+                double result = Calculation::CalculateResult(output);
+                cout << "Result: " << result << endl;
+            } catch (const invalid_argument& e) {
+                cerr << "Error: " << e.what() << endl;
             }
-            cout << endl;
         }
     }
 
