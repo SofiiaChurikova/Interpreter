@@ -1,5 +1,6 @@
 #include <iostream>
 #include <queue>
+#include <stack>
 #include <string>
 #include <cctype>
 
@@ -37,6 +38,54 @@ public:
     }
 };
 
+class ShuntingYard {
+private:
+    static bool IsOperator(const string& token) {
+        return token == "+" || token == "-" || token == "*" || token == "/";
+    }
+
+    static int Priority(const string& op) {
+        if (op == "+" || op == "-") return 1;
+        if (op == "*" || op == "/") return 2;
+        return 0;
+    }
+public:
+    static queue<string> TransformToRPN(queue<string>& tokens) {
+        stack<string> operStack;
+        queue<string> outputQueue;
+
+        while (!tokens.empty()) {
+            string token = tokens.front();
+            tokens.pop();
+
+            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
+                outputQueue.push(token);
+            } else if (IsOperator(token)) {
+                while (!operStack.empty() && Priority(operStack.top()) >= Priority(token)) {
+                    outputQueue.push(operStack.top());
+                    operStack.pop();
+                }
+                operStack.push(token);
+            } else if (token == "(") {
+                operStack.push(token);
+            } else if (token == ")") {
+                while (operStack.top() != "(") {
+                    outputQueue.push(operStack.top());
+                    operStack.pop();
+                }
+                operStack.pop();
+            }
+        }
+
+        while (!operStack.empty()) {
+            outputQueue.push(operStack.top());
+            operStack.pop();
+        }
+
+        return outputQueue;
+    }
+};
+
 int main() {
     string input;
 
@@ -48,10 +97,11 @@ int main() {
             break;
         } else {
             queue<string> tokens = Tokenization::Tokenize(input);
+            queue<string> output = ShuntingYard::TransformToRPN(tokens);
 
-            while (!tokens.empty()) {
-                cout << tokens.front() << " ";
-                tokens.pop();
+            while (!output.empty()) {
+                cout << output.front() << " ";
+                output.pop();
             }
             cout << endl;
         }
