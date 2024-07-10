@@ -1,0 +1,3 @@
+/Users/macbook/Documents/Interpreter/cmake-build-debug/CMakeFiles/main.dir
+/Users/macbook/Documents/Interpreter/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/macbook/Documents/Interpreter/cmake-build-debug/CMakeFiles/rebuild_cache.dir
