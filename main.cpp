@@ -6,10 +6,17 @@
 #include <stdexcept>
 #include <cmath>
 #include <map>
+#include <csetjmp>
 
 using namespace std;
 
 map<string, double> variables;
+jmp_buf jumpBuffer;
+
+void signalHandler(int sign) {
+    cerr << "Error: wrong entry " << endl;
+    longjmp(jumpBuffer, 1);
+}
 
 class Tokenization {
 public:
@@ -29,7 +36,7 @@ public:
                 tokens.push(string(1, ch));
             } else if (isalpha(ch)) {
                 size_t funcEnd = i;
-                while (funcEnd < input.length() && (isalpha(input[funcEnd]))) {
+                while (funcEnd < input.length() && (isalpha(input[funcEnd]) || isdigit(input[funcEnd]))) {
                     ++funcEnd;
                 }
                 string funcName = input.substr(i, funcEnd - i);
@@ -77,7 +84,8 @@ public:
             string token = tokens.front();
             tokens.pop();
 
-            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
+            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1])) || variables.
+                count(token)) {
                 outputQueue.push(token);
             } else if (IsFunction(token)) {
                 operStack.push(token);
@@ -141,7 +149,7 @@ private:
     }
 
 public:
-    static double CalculateResult(queue<string> &rpnQueue) {
+    static double CalculateResult(queue<string> &rpnQueue, string &var) {
         stack<double> stack;
 
         while (!rpnQueue.empty()) {
@@ -150,6 +158,8 @@ public:
 
             if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
                 stack.push(stod(token));
+            } else if (variables.count(token)) {
+                stack.push(variables[token]);
             } else if (ShuntingYard::IsOperator(token)) {
                 double operand2 = stack.top();
                 stack.pop();
@@ -175,13 +185,17 @@ public:
             }
         }
 
-        return stack.top();
+        double finalResult = stack.top();
+        if (!var.empty()) {
+            variables[var] = finalResult;
+        }
+        return finalResult;
     }
 };
 
 class Variable {
 private:
-    static string Replace(string str, const string& from, const string& to) {
+    static string Replace(string str, const string &from, const string &to) {
         size_t start = 0;
         while ((start = str.find(from, start)) != string::npos) {
             str.replace(start, from.length(), to);
@@ -189,9 +203,10 @@ private:
         }
         return str;
     }
+
 public:
-    static void SaveVar(const string& input) {
-        size_t pos = input.find("=");
+    static void SaveVar(const string &input) {
+        size_t pos = input.find('=');
         if (pos == string::npos) {
             throw invalid_argument("Invalid variable assignment.");
         }
@@ -202,12 +217,12 @@ public:
 
         queue<string> tokensVar = Tokenization::Tokenize(varValue);
         queue<string> outputVar = ShuntingYard::TransformToRPN(tokensVar);
-        double resultVar = Calculation::CalculateResult(outputVar);
+        double resultVar = Calculation::CalculateResult(outputVar, varName);
 
         variables[varName] = resultVar;
     }
 
-    static string ReplaceVar(const string& input) {
+    static string ReplaceVar(const string &input) {
         string result = input;
         queue<string> tokens = Tokenization::Tokenize(input);
         while (!tokens.empty()) {
@@ -221,29 +236,48 @@ public:
 
         return result;
     }
+
+    static void ParseVar(string &input, string &assignVar) {
+        size_t pos = input.find('=');
+        if (pos != string::npos) {
+            assignVar = input.substr(0, pos);
+            assignVar.erase(remove_if(assignVar.begin(), assignVar.end(), ::isspace), assignVar.end());
+            input = input.substr(pos + 1);
+        }
+    }
 };
+
 int main() {
+    signal(SIGSEGV, signalHandler);
+
     string input;
 
     while (true) {
-        cout << "Enter the mathematical expression (or '0' to exit): ";
         getline(cin, input);
 
         if (input == "0") {
             break;
         } else {
-            try {
-                if (input.find("var ") == 0) {
-                    Variable::SaveVar(input.substr(4));
-                } else {
-                    string processedInput = Variable::ReplaceVar(input);
-                    queue<string> tokens = Tokenization::Tokenize(processedInput);
-                    queue<string> output = ShuntingYard::TransformToRPN(tokens);
-                    double result = Calculation::CalculateResult(output);
-                    cout << "Result: " << result << endl;
+            if (setjmp(jumpBuffer) == 0) {
+                try {
+                    if (input.find("var ") == 0) {
+                        Variable::SaveVar(input.substr(4));
+                    } else {
+                        string var;
+                        Variable::ParseVar(input, var);
+                        string processedInput = Variable::ReplaceVar(input);
+                        queue<string> tokens = Tokenization::Tokenize(processedInput);
+                        queue<string> output = ShuntingYard::TransformToRPN(tokens);
+                        double result = Calculation::CalculateResult(output, var);
+                        cout << "Result: " << result << endl;
+                    }
+                } catch (const invalid_argument &e) {
+                    cerr << "Error: " << e.what() << endl;
+                } catch (const exception &e) {
+                    cerr << "Exception: " << e.what() << endl;
+                } catch (...) {
+                    cerr << "Unknown error occurred" << endl;
                 }
-            } catch (const invalid_argument &e) {
-                cerr << "Error: " << e.what() << endl;
             }
         }
     }
