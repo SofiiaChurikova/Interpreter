@@ -195,7 +195,7 @@ public:
     static void SaveVar(const string &input) {
         size_t pos = input.find('=');
         if (pos == string::npos) {
-            throw invalid_argument("Invalid variable assignment.");
+            throw invalid_argument("Invalid variable.");
         }
 
         string varName = input.substr(0, pos);
@@ -209,11 +209,11 @@ public:
         variables[varName] = resultVar;
     }
 
-    static void ParseVar(string &input, string &assignVar) {
+    static void ParseVar(string &input, string &var) {
         size_t pos = input.find('=');
         if (pos != string::npos) {
-            assignVar = input.substr(0, pos);
-            assignVar.erase(remove_if(assignVar.begin(), assignVar.end(), ::isspace), assignVar.end());
+            var = input.substr(0, pos);
+            var.erase(remove_if(var.begin(), var.end(), ::isspace), var.end());
             input = input.substr(pos + 1);
         }
     }
