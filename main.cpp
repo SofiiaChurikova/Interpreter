@@ -4,12 +4,13 @@
 #include <string>
 #include <cctype>
 #include <stdexcept>
+#include <cmath>
 
 using namespace std;
 
 class Tokenization {
 public:
-    static queue<string> Tokenize(const string& input) {
+    static queue<string> Tokenize(const string &input) {
         queue<string> tokens;
         string token;
 
@@ -17,12 +18,24 @@ public:
             char ch = input[i];
             if (isdigit(ch) || ch == '.' || (ch == '-' && (i == 0 || !isdigit(input[i - 1])))) {
                 token += ch;
-            } else if (ch == '(' || ch == ')' || string("+-*/").find(ch) != string::npos) {
+            } else if (ch == '(' || ch == ')' || string("+-*/,").find(ch) != string::npos) {
                 if (!token.empty()) {
                     tokens.push(token);
                     token.clear();
                 }
                 tokens.push(string(1, ch));
+            } else if (isalpha(ch)) {
+                size_t funcEnd = i;
+                while (funcEnd < input.length() && (isalpha(input[funcEnd]))) {
+                    ++funcEnd;
+                }
+                if (funcEnd < input.length() && input[funcEnd] == '(') {
+                    tokens.push(input.substr(i, funcEnd - i));
+                    i = funcEnd - 1;
+                } else {
+                    tokens.push(input.substr(i, funcEnd - i));
+                }
+                i = funcEnd - 1;
             } else if (ch == ' ') {
                 if (!token.empty()) {
                     tokens.push(token);
@@ -41,20 +54,24 @@ public:
     }
 };
 
+
 class ShuntingYard {
-private:
-    static bool IsOperator(const string& token) {
+public:
+    static bool IsOperator(const string &token) {
         return token == "+" || token == "-" || token == "*" || token == "/";
     }
 
-    static int Priority(const string& op) {
+    static bool IsFunction(const string &token) {
+        return token == "pow" || token == "abs" || token == "max" || token == "min";
+    }
+
+    static int Priority(const string &op) {
         if (op == "+" || op == "-") return 1;
         if (op == "*" || op == "/") return 2;
         return 0;
     }
 
-public:
-    static queue<string> TransformToRPN(queue<string>& tokens) {
+    static queue<string> TransformToRPN(queue<string> &tokens) {
         stack<string> operStack;
         queue<string> outputQueue;
 
@@ -64,8 +81,11 @@ public:
 
             if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
                 outputQueue.push(token);
+            } else if (IsFunction(token)) {
+                operStack.push(token);
             } else if (IsOperator(token)) {
-                while (!operStack.empty() && Priority(operStack.top()) >= Priority(token)) {
+                while (!operStack.empty() && (IsFunction(operStack.top()) || Priority(operStack.top()) >=
+                                              Priority(token))) {
                     outputQueue.push(operStack.top());
                     operStack.pop();
                 }
@@ -78,6 +98,17 @@ public:
                     operStack.pop();
                 }
                 operStack.pop();
+                if (!operStack.empty() && IsFunction(operStack.top())) {
+                    outputQueue.push(operStack.top());
+                    operStack.pop();
+                }
+            } else if (token == ",") {
+                while (!operStack.empty() && operStack.top() != "(") {
+                    outputQueue.push(operStack.top());
+                    operStack.pop();
+                }
+            } else {
+                throw invalid_argument("Invalid token in input: " + token);
             }
         }
 
@@ -91,31 +122,8 @@ public:
 };
 
 class Calculation {
-public:
-    static double CalculateResult(queue<string>& rpnQueue) {
-        stack<double> stack;
-
-        while (!rpnQueue.empty()) {
-            string token = rpnQueue.front();
-            rpnQueue.pop();
-
-            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
-                stack.push(stod(token));
-            } else {
-                double operand2 = stack.top();
-                stack.pop();
-                double operand1 = stack.top();
-                stack.pop();
-                double result = ApplyOperator(token, operand1, operand2);
-                stack.push(result);
-            }
-        }
-
-        return stack.top();
-    }
-
 private:
-    static double ApplyOperator(const string& op, double a, double b) {
+    static double ApplyOperator(const string &op, double a, double b) {
         if (op == "+") return a + b;
         if (op == "-") return a - b;
         if (op == "*") return a * b;
@@ -124,7 +132,52 @@ private:
                 throw invalid_argument("Division by zero");
             }
             return a / b;
+        } else if (op == "pow") {
+            return pow(a, b);
+        } else if (op == "max") {
+            return max(a, b);
+        } else if (op == "min") {
+            return min(a, b);
         }
+        throw invalid_argument("Invalid operator or function");
+    }
+
+public:
+    static double CalculateResult(queue<string> &rpnQueue) {
+        stack<double> stack;
+
+        while (!rpnQueue.empty()) {
+            string token = rpnQueue.front();
+            rpnQueue.pop();
+
+            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1]))) {
+                stack.push(stod(token));
+            } else if (ShuntingYard::IsOperator(token)) {
+                double operand2 = stack.top();
+                stack.pop();
+                double operand1 = stack.top();
+                stack.pop();
+                double result = ApplyOperator(token, operand1, operand2);
+                stack.push(result);
+            } else if (ShuntingYard::IsFunction(token)) {
+                if (token == "abs") {
+                    double operand = stack.top();
+                    stack.pop();
+                    stack.push(abs(operand));
+                } else {
+                    double operand2 = stack.top();
+                    stack.pop();
+                    double operand1 = stack.top();
+                    stack.pop();
+                    double result = ApplyOperator(token, operand1, operand2);
+                    stack.push(result);
+                }
+            } else {
+                throw invalid_argument("Invalid token in RPN queue: " + token);
+            }
+        }
+
+        return stack.top();
     }
 };
 
@@ -135,7 +188,7 @@ int main() {
         cout << "Enter the mathematical expression (or '0' to exit): ";
         getline(cin, input);
 
-        if (input[0] == '0') {
+        if (input == "0") {
             break;
         } else {
             try {
@@ -144,7 +197,7 @@ int main() {
 
                 double result = Calculation::CalculateResult(output);
                 cout << "Result: " << result << endl;
-            } catch (const invalid_argument& e) {
+            } catch (const invalid_argument &e) {
                 cerr << "Error: " << e.what() << endl;
             }
         }
