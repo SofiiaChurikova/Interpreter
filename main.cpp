@@ -1,17 +1,16 @@
 #include <iostream>
+#include <string>
 #include <queue>
 #include <stack>
-#include <string>
-#include <cctype>
-#include <stdexcept>
-#include <cmath>
 #include <map>
+#include <cctype>
+#include <cmath>
 #include <csetjmp>
 
 using namespace std;
 
-map<string, double> variables;
 jmp_buf jumpBuffer;
+map<string, double> variables;
 
 void signalHandler(int sign) {
     cerr << "Error: wrong entry " << endl;
@@ -84,14 +83,12 @@ public:
             string token = tokens.front();
             tokens.pop();
 
-            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1])) || variables.
-                count(token)) {
+            if (isdigit(token[0]) || (token.size() > 1 && token[0] == '-' && isdigit(token[1])) || variables.count(token)) {
                 outputQueue.push(token);
             } else if (IsFunction(token)) {
                 operStack.push(token);
             } else if (IsOperator(token)) {
-                while (!operStack.empty() && (IsFunction(operStack.top()) || Priority(operStack.top()) >=
-                                              Priority(token))) {
+                while (!operStack.empty() && (IsFunction(operStack.top()) || Priority(operStack.top()) >= Priority(token))) {
                     outputQueue.push(operStack.top());
                     operStack.pop();
                 }
@@ -194,16 +191,6 @@ public:
 };
 
 class Variable {
-private:
-    static string Replace(string str, const string &from, const string &to) {
-        size_t start = 0;
-        while ((start = str.find(from, start)) != string::npos) {
-            str.replace(start, from.length(), to);
-            start += to.length();
-        }
-        return str;
-    }
-
 public:
     static void SaveVar(const string &input) {
         size_t pos = input.find('=');
@@ -220,21 +207,6 @@ public:
         double resultVar = Calculation::CalculateResult(outputVar, varName);
 
         variables[varName] = resultVar;
-    }
-
-    static string ReplaceVar(const string &input) {
-        string result = input;
-        queue<string> tokens = Tokenization::Tokenize(input);
-        while (!tokens.empty()) {
-            string token = tokens.front();
-            tokens.pop();
-
-            if (variables.find(token) != variables.end()) {
-                result = Replace(result, token, to_string(variables[token]));
-            }
-        }
-
-        return result;
     }
 
     static void ParseVar(string &input, string &assignVar) {
@@ -265,8 +237,7 @@ int main() {
                     } else {
                         string var;
                         Variable::ParseVar(input, var);
-                        string processedInput = Variable::ReplaceVar(input);
-                        queue<string> tokens = Tokenization::Tokenize(processedInput);
+                        queue<string> tokens = Tokenization::Tokenize(input);
                         queue<string> output = ShuntingYard::TransformToRPN(tokens);
                         double result = Calculation::CalculateResult(output, var);
                         cout << "Result: " << result << endl;
