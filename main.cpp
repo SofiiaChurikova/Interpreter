@@ -5,8 +5,11 @@
 #include <cctype>
 #include <stdexcept>
 #include <cmath>
+#include <map>
 
 using namespace std;
+
+map<string, double> variables;
 
 class Tokenization {
 public:
@@ -18,7 +21,7 @@ public:
             char ch = input[i];
             if (isdigit(ch) || ch == '.' || (ch == '-' && (i == 0 || !isdigit(input[i - 1])))) {
                 token += ch;
-            } else if (ch == '(' || ch == ')' || string("+-*/,").find(ch) != string::npos) {
+            } else if (ch == '(' || ch == ')' || string("+-*/,=").find(ch) != string::npos) {
                 if (!token.empty()) {
                     tokens.push(token);
                     token.clear();
@@ -29,12 +32,8 @@ public:
                 while (funcEnd < input.length() && (isalpha(input[funcEnd]))) {
                     ++funcEnd;
                 }
-                if (funcEnd < input.length() && input[funcEnd] == '(') {
-                    tokens.push(input.substr(i, funcEnd - i));
-                    i = funcEnd - 1;
-                } else {
-                    tokens.push(input.substr(i, funcEnd - i));
-                }
+                string funcName = input.substr(i, funcEnd - i);
+                tokens.push(funcName);
                 i = funcEnd - 1;
             } else if (ch == ' ') {
                 if (!token.empty()) {
@@ -53,7 +52,6 @@ public:
         return tokens;
     }
 };
-
 
 class ShuntingYard {
 public:
@@ -181,6 +179,49 @@ public:
     }
 };
 
+class Variable {
+private:
+    static string Replace(string str, const string& from, const string& to) {
+        size_t start = 0;
+        while ((start = str.find(from, start)) != string::npos) {
+            str.replace(start, from.length(), to);
+            start += to.length();
+        }
+        return str;
+    }
+public:
+    static void SaveVar(const string& input) {
+        size_t pos = input.find("=");
+        if (pos == string::npos) {
+            throw invalid_argument("Invalid variable assignment.");
+        }
+
+        string varName = input.substr(0, pos);
+        varName.erase(remove_if(varName.begin(), varName.end(), ::isspace), varName.end());
+        string varValue = input.substr(pos + 1);
+
+        queue<string> tokensVar = Tokenization::Tokenize(varValue);
+        queue<string> outputVar = ShuntingYard::TransformToRPN(tokensVar);
+        double resultVar = Calculation::CalculateResult(outputVar);
+
+        variables[varName] = resultVar;
+    }
+
+    static string ReplaceVar(const string& input) {
+        string result = input;
+        queue<string> tokens = Tokenization::Tokenize(input);
+        while (!tokens.empty()) {
+            string token = tokens.front();
+            tokens.pop();
+
+            if (variables.find(token) != variables.end()) {
+                result = Replace(result, token, to_string(variables[token]));
+            }
+        }
+
+        return result;
+    }
+};
 int main() {
     string input;
 
@@ -192,11 +233,15 @@ int main() {
             break;
         } else {
             try {
-                queue<string> tokens = Tokenization::Tokenize(input);
-                queue<string> output = ShuntingYard::TransformToRPN(tokens);
-
-                double result = Calculation::CalculateResult(output);
-                cout << "Result: " << result << endl;
+                if (input.find("var ") == 0) {
+                    Variable::SaveVar(input.substr(4));
+                } else {
+                    string processedInput = Variable::ReplaceVar(input);
+                    queue<string> tokens = Tokenization::Tokenize(processedInput);
+                    queue<string> output = ShuntingYard::TransformToRPN(tokens);
+                    double result = Calculation::CalculateResult(output);
+                    cout << "Result: " << result << endl;
+                }
             } catch (const invalid_argument &e) {
                 cerr << "Error: " << e.what() << endl;
             }
